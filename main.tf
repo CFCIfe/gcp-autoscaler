@@ -75,6 +75,7 @@ resource "google_project_service" "project_service" {
   project  = local.project_id
   for_each = toset(local.apis_to_enable)
   service  = each.value
+  disable_dependent_services = true
 }
 
 resource "google_compute_instance" "tf-jessica-vm-delete" {
