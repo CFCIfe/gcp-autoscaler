@@ -226,6 +226,10 @@ You can simulate a Pub/Sub event by manually invoking `pubsub_handler(payload, c
 
 <br />
 
+## Other links:
+
+[Don't enable Google APIs by code](https://stackoverflow.com/a/72306829/10864570)
+
 ## 📜 License
 
 MIT License. See `LICENSE` file.
