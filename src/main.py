@@ -10,6 +10,7 @@ from google.api_core.extended_operation import ExtendedOperation
 from google.cloud import compute_v1
 
 TERMINATED = compute_v1.Instance.Status.TERMINATED.name
+RUNNING = compute_v1.Instance.Status.RUNNING.name
 
 
 def wait_for_extended_operation(
@@ -119,29 +120,42 @@ def change_machine_type_if_needed(
     instance = get_instance(project_id, zone, instance_name)
     current_machine_type = instance.machine_type.split("/")[-1]
 
-    if instance.status != TERMINATED:
-        print(
-            f"[WARNING]  Instance {instance.name} must be TERMINATED to change machine type. Current: {instance.status}",
-            flush=True,
-        )
-
-        stop_instance_if_needed(project_id, zone, instance_name)
-
     if current_machine_type == new_machine_type:
+        if instance.status == RUNNING:
+            print(
+                f"[INFO] Instance {instance.name} is already of type {new_machine_type} and is running. Skipping update.",
+                flush=True,
+            )
+            return
+        else:
+            print(
+                f"[INFO] Instance {instance.name} is already of type {new_machine_type} and stopped. Starting the server.",
+                flush=True,
+            )
+            start_operation = client.start(
+                project=project_id, zone=zone, instance=instance_name
+            )
+            wait_for_extended_operation(start_operation, "Starting instance")
+            return
+
+    if instance.status == RUNNING:
         print(
-            f"[INFO] Instance {instance.name} is already of type {new_machine_type}. Skipping update.",
+            f"[WARNING] Instance {instance.name} is RUNNING. It must be stopped to change machine type.",
             flush=True,
         )
-        return
+        stop_instance_if_needed(project_id, zone, instance_name)
+        instance = get_instance(project_id, zone, instance_name)
 
     print(
         f"[INFO] Changing machine type of {instance.name} to {new_machine_type}...",
         flush=True,
     )
+
     machine_type = compute_v1.InstancesSetMachineTypeRequest()
     machine_type.machine_type = (
         f"projects/{project_id}/zones/{zone}/machineTypes/{new_machine_type}"
     )
+
     operation = client.set_machine_type(
         project=project_id,
         zone=zone,
@@ -150,13 +164,16 @@ def change_machine_type_if_needed(
     )
     wait_for_extended_operation(operation, "Changing machine type")
 
-    print(f"[INFO] Starting instance {instance.name}...", flush=True)
+    print(
+        f"[INFO] Restarting instance {instance.name} after machine type update...",
+        flush=True,
+    )
     start_operation = client.start(
         project=project_id, zone=zone, instance=instance_name
     )
     wait_for_extended_operation(start_operation, "Starting instance")
     print(
-        f"[INFO] Instance {instance.name} machine type changed from {current_machine_type} to {new_machine_type}.",
+        f"[INFO] Instance {instance.name} machine type changed from {current_machine_type} to {new_machine_type}, and is successfully restarted.",
         flush=True,
     )
 
